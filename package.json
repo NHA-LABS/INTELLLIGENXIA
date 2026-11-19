@@ -1,0 +1,23 @@
+﻿{
+    "name":  "intelligencia-v2",
+    "version":  "1.0.0",
+    "description":  "Plateforme de veille stratégique NSIA — Microsoft Entra, SharePoint et Copilot Studio",
+    "scripts":  {
+                    "dev":  "vite",
+                    "build":  "vite build",
+                    "preview":  "vite preview"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "type":  "module",
+    "dependencies":  {
+                         "@microsoft/agents-copilotstudio-client":  "^1.9.1"
+                     },
+    "devDependencies":  {
+                            "vite":  "^8.3.6"
+                        },
+    "private":  true
+}

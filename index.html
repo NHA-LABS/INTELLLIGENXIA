@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="INTELLIGENXIA — Plateforme de veille stratégique du Groupe NSIA">
+  <title>INTELLIGENXIA | Veille stratégique NSIA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="loginScreen" class="login-screen">
+    <div class="login-card">
+        <img src="/images/Logos NSIA 2026 VF.png" alt="NSIA Assurances" class="login-logo">
+
+        <div class="login-divider"></div>
+
+        <h1>Bienvenue sur INTELLIGENXIA</h1>
+
+        <p>
+            Votre plateforme de veille stratégique
+            au service de la performance de NSIA HOLDING ASSURANCES.
+        </p>
+
+        <button id="loginScreenButton" type="button">
+            <span>⊞</span>
+            Se connecter avec Microsoft
+        </button>
+
+        <small>Accès réservé aux collaborateurs autorisés de NSIA HOLDING ASSURANCES.</small>
+    </div>
+</div>
+
+<div class="app-shell" id="appShell" hidden>
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="#" data-page="Accueil">
+    <img src="/images/Logo NHA.png" alt="NSIA Assurances" class="brand-logo">
+</a>
+    <div class="sidebar-divider"></div>
+    <div class="product-brand"><div class="orbit-mark"><span></span></div><div><strong>INTELLIGEN<span>XIA</span></strong><small>VEILLE STRATÉGIQUE</small></div></div>
+    <nav class="main-nav" aria-label="Navigation principale">
+      <button class="nav-link active" data-page="Accueil"><span class="nav-icon">⌂</span>Accueil</button>
+      <button class="nav-link" data-page="Actualités"><span class="nav-icon">▤</span>Actualités</button>
+      <button class="nav-link" data-page="Actualités prioritaires"><span class="nav-icon">☆</span>Actualités prioritaires</button>
+      <button class="nav-link" data-page="Types de veille"><span class="nav-icon">▱</span>Types de veille</button>
+      <button class="nav-link" data-page="INTELLIGENXIA"><span class="nav-icon">✧</span>Discutez avec VIRA</button>
+      <button class="nav-link" data-page="Concurrents"><span class="nav-icon">♧</span>Panorama des acteurs financiers</button>
+      <button class="nav-link" data-page="Statistiques"><span class="nav-icon">▥</span>Statistiques</button>
+      <button class="nav-link" data-page="Analyse documentaire">
+    <span class="nav-icon">▤</span>
+    Remontée documentaire
+</button>
+    </nav>
+    
+  </aside>
+
+  <main class="main-area">
+    <header class="topbar">
+      <button class="mobile-menu" id="mobileMenu" aria-label="Ouvrir le menu">☰</button>
+      <div class="topbar-title"><span class="status-dot"></span> Espace de veille du Groupe</div>
+      <div class="topbar-actions"><button class="icon-button" aria-label="Notifications">♧<i></i></button><div class="profile" id="userProfile">
+    <div class="avatar" id="userAvatar">NS</div>
+
+    <div class="profile-name">
+        <strong id="userName">Utilisateur NSIA</strong>
+        <small id="userEmail">Compte Microsoft 365</small>
+    </div>
+
+    <button
+        id="loginButton"
+        type="button"
+        title="Se connecter avec Microsoft"
+        hidden
+        style="background:#CF9C0E;color:#091D60;border:0;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:11px;font-weight:700;">
+        Connexion
+    </button>
+    <button
+        id="logoutButton"
+        type="button"
+        title="Se déconnecter"
+        hidden
+        style="background:transparent;color:white;border:0;cursor:pointer;font-size:11px;">
+        Déconnexion
+    </button>
+</div></div>
+    </header>
+    <div class="content" id="pageContent"></div>
+    <footer class="page-footer"><span>© 2026 Groupe NSIA · INTELLIGENXIA</span><span>La veille qui éclaire vos décisions.</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
+<script type="module" src="/js/main.js"></script>
+</body></html>
