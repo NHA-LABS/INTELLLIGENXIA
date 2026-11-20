@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex"><title>Connexion Microsoft | INTELLIGENXIA</title></head>
+<body>
+<p id="redirectStatus" role="status">Finalisation de votre connexion Microsoft…</p>
+<a href="./index.html">Retour à la connexion</a>
+<script type="module">
+import { broadcastResponseToMainFrame } from "@azure/msal-browser/redirect-bridge";
+broadcastResponseToMainFrame().catch(() => {
+    document.getElementById("redirectStatus").textContent = "La connexion n'a pas pu être finalisée. Revenez à la page de connexion pour réessayer.";
+});
+</script>
+</body>
+</html>

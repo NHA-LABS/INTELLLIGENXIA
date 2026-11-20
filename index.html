@@ -23,11 +23,13 @@
             au service de la performance de NSIA HOLDING ASSURANCES.
         </p>
 
-        <button id="loginScreenButton" type="button">
+        <button id="loginScreenButton" type="button" disabled aria-describedby="loginStatus">
             <span>⊞</span>
             Se connecter avec Microsoft
         </button>
 
+        <p id="loginStatus" role="status" aria-live="polite">Préparation de la connexion sécurisée…</p>
+        <noscript>Activez JavaScript pour vous connecter à la plateforme.</noscript>
         <small>Accès réservé aux collaborateurs autorisés de NSIA HOLDING ASSURANCES.</small>
     </div>
 </div>
@@ -90,6 +92,5 @@
   </main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js"></script>
 <script type="module" src="/js/main.js"></script>
 </body></html>

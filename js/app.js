@@ -1,3 +1,4 @@
+import { CONFIG } from "./config.js";
 const content = document.getElementById("pageContent");
 const toast = document.getElementById("toast");
 let toastTimer;
@@ -8,7 +9,7 @@ let featuredArticles = [];
 let featuredIndex = 0;
 let featuredCarouselTimer = null;
 
-const INTELLIGENXIA_URL = "https://m365.cloud.microsoft/chat/?titleId=T_bad2b207-1532-90bc-66f1-0afc5912be68";
+const INTELLIGENXIA_URL = CONFIG.copilot.chatUrl;
 
 function getLatestFeaturedArticles() {
     return [...articles]
@@ -348,7 +349,7 @@ function assistant() {
                 overflow: hidden;
             ">
                 <iframe
-                    src="https://copilotstudio.microsoft.com/environments/Default-467092d2-790b-4de1-9b3e-38b384eb2a21/bots/crbca_veillestratgiquensia_bmQ16w/webchat?__version__=2&enableFileAttachment=false&cliAgent=true"
+                    src="https://copilotstudio.microsoft.com/environments/${encodeURIComponent(CONFIG.copilot.environmentId)}/bots/${encodeURIComponent(CONFIG.copilot.schemaName)}/webchat?__version__=2&enableFileAttachment=false&cliAgent=true"
                     title="Assistant INTELLIGENXIA"
                     style="width: 100%; height: 100%; border: 0;"
                     frameborder="0"

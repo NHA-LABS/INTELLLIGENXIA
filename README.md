@@ -1,4 +1,4 @@
-﻿# INTELLIGENXIA — préparation de production
+# INTELLIGENXIA — préparation de production
 
 ## Compiler
 
@@ -16,7 +16,7 @@ Le développement écoute sur http://localhost:5500. La prévisualisation locale
 ## Configuration Microsoft avant ouverture
 
 1. Dans Microsoft Entra ID, ouvrir l'inscription d'application `9e4f1be0-438e-415e-a5db-eebea0a04bc9`, puis **Authentification > Application monopage (SPA)**.
-2. Inscrire l'URI exacte `https://votre-domaine/index.html`. Le code calcule cette URI à partir de l'adresse du site. Conserver `http://localhost:5500/index.html` pour le développement ; ajouter `http://localhost:4173/index.html` pour tester la compilation locale.
+2. Inscrire l'URI exacte `https://votre-domaine/redirect.html`. Le code calcule cette URI à partir de l'adresse du site. Conserver `http://localhost:5500/redirect.html` pour le développement ; ajouter `http://localhost:4173/redirect.html` pour tester la compilation locale.
 3. Faire valider les permissions Graph déléguées utilisées : `User.Read`, `Sites.Read.All` et, pour le dépôt documentaire, `Sites.ReadWrite.All`. Vérifier aussi les droits des collaborateurs sur les listes et la bibliothèque SharePoint. La lecture n'autorise pas automatiquement les dépôts.
 4. Vérifier l'accès des collaborateurs à l'agent Copilot Studio et au lien Microsoft 365 défini dans `js/app.js`, ainsi que les consentements nécessaires à l'agent.
 
@@ -26,7 +26,7 @@ Les identifiants de configuration dans `js/config.js` sont publics. Aucun secret
 
 La configuration Netlify fournie compile avec `npm run build` et publie `dist` avec Node 24. Pour un autre hébergeur, reprendre ces paramètres. Les en-têtes dans `public/_headers` sont appliqués par les hébergeurs compatibles ; ailleurs, les configurer côté serveur. Le HTML doit être revalidé et les ressources `/assets/` peuvent être mises en cache longtemps. Ne publier ni les sources complètes ni `node_modules`.
 
-Le navigateur doit pouvoir joindre Microsoft Entra, Microsoft Graph, Copilot Studio, Microsoft 365, le CDN MSAL `alcdn.msauth.net` et Google Fonts. Les règles de non-indexation fournies ne constituent pas un contrôle d'accès.
+Le navigateur doit pouvoir joindre Microsoft Entra, Microsoft Graph, Copilot Studio, Microsoft 365, Google Fonts. Les règles de non-indexation fournies ne constituent pas un contrôle d'accès.
 
 ## Recette sur le domaine définitif
 
@@ -41,3 +41,5 @@ Le navigateur doit pouvoir joindre Microsoft Entra, Microsoft Graph, Copilot Stu
 ## Limites à valider
 
 L'enregistrement des visites reste désactivé dans `registerVisit` ; les compteurs lisent les données déjà présentes. Certaines rubriques conservent des contenus de démonstration à valider avant ouverture. La compilation ne valide pas les accès Microsoft : la recette nécessite un compte autorisé et le domaine final.
+
+La procédure détaillée Microsoft Entra ID se trouve dans [ENTRA-ID.md](ENTRA-ID.md). La bibliothèque MSAL est intégrée à la compilation ; la page redirect.html doit être publiée avec le site.

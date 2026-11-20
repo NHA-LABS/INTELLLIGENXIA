@@ -1,4 +1,5 @@
 import { CONFIG } from "./config.js";
+import { PublicClientApplication } from "@azure/msal-browser";
 
 // Configuration Microsoft Entra ID / MSAL
 const msalConfig = {
@@ -6,7 +7,7 @@ const msalConfig = {
         clientId: CONFIG.clientId,
         authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
         redirectUri: CONFIG.redirectUri,
-        postLogoutRedirectUri: CONFIG.redirectUri
+        postLogoutRedirectUri: CONFIG.logoutUri
     },
     cache: {
         cacheLocation: "sessionStorage",
@@ -14,7 +15,16 @@ const msalConfig = {
     }
 };
 
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+const msalInstance = new PublicClientApplication(msalConfig);
+let authReady = false;
+function setLoginState(message, busy = false) {
+    const status = document.getElementById("loginStatus");
+    if (status) status.textContent = message;
+    for (const id of ["loginScreenButton", "loginButton"]) {
+        const button = document.getElementById(id);
+        if (button) button.disabled = busy || !authReady;
+    }
+}
 // Mise à disposition de MSAL pour les modules JavaScript
 window.msalInstance = msalInstance;
 window.getCurrentUser = getCurrentUser;
@@ -23,7 +33,8 @@ window.getCurrentUser = getCurrentUser;
 
 async function initAuth() {
     try {
-        await msalInstance.initialize?.();
+        setLoginState("Vérification de votre session Microsoft…", true);
+        await msalInstance.initialize();
 
         const response = await msalInstance.handleRedirectPromise();
 
@@ -38,6 +49,8 @@ async function initAuth() {
             msalInstance.setActiveAccount(accounts[0]);
         }
 
+        authReady = true;
+        setLoginState("Connectez-vous avec votre compte professionnel Microsoft.");
         const account = getCurrentUser();
 
         if (!account) {
@@ -77,6 +90,7 @@ if (window.updateVisitCounters) {
     } catch (error) {
         console.error("Erreur d'initialisation Microsoft :", error);
         showSignedOutProfile();
+        setLoginState("Impossible de vérifier la connexion. Actualisez la page et réessayez.");
     }
 }
 
@@ -133,9 +147,10 @@ function showSignedOutProfile() {
 }
 
 function getCurrentUser() {
-    return msalInstance.getActiveAccount()
+    const account = msalInstance.getActiveAccount()
         || msalInstance.getAllAccounts()[0]
         || null;
+    return account?.tenantId?.toLowerCase() === CONFIG.tenantId.toLowerCase() ? account : null;
 }
 function getCurrentUserEmail() {
     const account = getCurrentUser();
@@ -145,13 +160,16 @@ function getCurrentUserEmail() {
 // Connexion Microsoft : les deux autorisations sont nécessaires
 // pour le profil et la future lecture de la liste SharePoint.
 async function loginMicrosoft() {
+    if (!authReady) return;
     try {
+        setLoginState("Redirection vers Microsoft…", true);
         await msalInstance.loginRedirect({
-            scopes: ["User.Read", "Sites.Read.All"]
+            scopes: ["User.Read"],
+            prompt: "select_account"
         });
     } catch (error) {
         console.error("Erreur de connexion Microsoft :", error);
-        alert("La connexion Microsoft a échoué. Consultez la console du navigateur pour plus de détails.");
+        setLoginState("La connexion a échoué ou a été annulée. Vous pouvez réessayer.");
     }
 }
 
@@ -167,7 +185,7 @@ async function logoutMicrosoft() {
     try {
         await msalInstance.logoutRedirect({
             account,
-            postLogoutRedirectUri: CONFIG.redirectUri
+            postLogoutRedirectUri: CONFIG.logoutUri
         });
     } catch (error) {
         console.error("Erreur de déconnexion Microsoft :", error);
@@ -197,8 +215,8 @@ async function fetchSharePointArticles() {
     const account = getCurrentUser();
     if (!account) throw new Error("Connectez-vous avec votre compte Microsoft NSIA.");
 
-    const siteId = "assurancesnsia.sharepoint.com,35765e6b-5df0-4cde-8ef9-47fe5fafb4c3,5eced96b-88c1-4917-8510-a05551d4f426";
-    const listId = "29a2ac9d-98ff-4731-b8b3-d151e8b7bb00";
+    const siteId = CONFIG.sharepoint.siteId;
+    const listId = CONFIG.sharepoint.articlesListId;
     const tokenResult = await msalInstance.acquireTokenSilent({ scopes: ["Sites.Read.All"], account });
     let nextUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=100`;
     const allItems = [];
@@ -230,8 +248,8 @@ async function registerVisit() {
     const email = getCurrentUserEmail();
     if (!email) return;
 
-    const siteId = "assurancesnsia.sharepoint.com,35765e6b-5df0-4cde-8ef9-47fe5fafb4c3,5eced96b-88c1-4917-8510-a05551d4f426";
-    const listId = "45901f50-8e8b-4bd1-92c8-d412ad20d850";
+    const siteId = CONFIG.sharepoint.siteId;
+    const listId = CONFIG.sharepoint.visitsListId;
 
     console.info("Compteur de visites prêt pour :", email);
 
@@ -248,8 +266,8 @@ async function getVisitStats() {
         throw new Error("Aucun utilisateur Microsoft connecté.");
     }
 
-    const siteId = "assurancesnsia.sharepoint.com,35765e6b-5df0-4cde-8ef9-47fe5fafb4c3,5eced96b-88c1-4917-8510-a05551d4f426";
-    const listId = "45901f50-8e8b-4bd1-92c8-d412ad20d850";
+    const siteId = CONFIG.sharepoint.siteId;
+    const listId = CONFIG.sharepoint.visitsListId;
 
     const tokenResult = await msalInstance.acquireTokenSilent({
         scopes: ["Sites.Read.All"],
@@ -299,8 +317,8 @@ async function testSharePointConnection() {
         throw new Error("Aucun compte Microsoft connecté. Connectez-vous d'abord.");
     }
 
-    const siteId = "assurancesnsia.sharepoint.com,35765e6b-5df0-4cde-8ef9-47fe5fafb4c3,5eced96b-88c1-4917-8510-a05551d4f426";
-    const listId = "29a2ac9d-98ff-4731-b8b3-d151e8b7bb00";
+    const siteId = CONFIG.sharepoint.siteId;
+    const listId = CONFIG.sharepoint.articlesListId;
 
     try {
         const tokenResult = await msalInstance.acquireTokenSilent({
@@ -360,7 +378,7 @@ async function uploadDocumentToSharePoint(file) {
         throw new Error("Aucun document sélectionné.");
     }
 
-    const driveId = "b!a152NfBd3kyO-Uf-X6-0w2vZzl7BiBdJhRCgVVHU9CZfrqr0z_RWRI0zc4xmUX2M";
+    const driveId = CONFIG.sharepoint.documentsDriveId;
 
     const tokenResult = await msalInstance.acquireTokenSilent({
         scopes: ["Sites.ReadWrite.All"],
