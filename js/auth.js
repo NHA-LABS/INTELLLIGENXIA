@@ -17,6 +17,23 @@ const msalConfig = {
 
 const msalInstance = new PublicClientApplication(msalConfig);
 let authReady = false;
+async function withAuthTimeout(operation, milliseconds = 15000) {
+    let timer;
+    try {
+        return await Promise.race([
+            operation,
+            new Promise((_, reject) => {
+                timer = setTimeout(() => reject(Object.assign(new Error("Microsoft ne répond pas."), { errorCode: "auth_timeout" })), milliseconds);
+            })
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+function authErrorMessage(error) {
+    const code = String(error?.errorCode || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+    return code ? ` Code : ${code}.` : "";
+}
 function setLoginState(message, busy = false) {
     const status = document.getElementById("loginStatus");
     if (status) status.textContent = message;
@@ -34,9 +51,9 @@ window.getCurrentUser = getCurrentUser;
 async function initAuth() {
     try {
         setLoginState("Vérification de votre session Microsoft…", true);
-        await msalInstance.initialize();
+        await withAuthTimeout(msalInstance.initialize());
 
-        const response = await msalInstance.handleRedirectPromise();
+        const response = await withAuthTimeout(msalInstance.handleRedirectPromise());
 
         if (response && response.account) {
             msalInstance.setActiveAccount(response.account);
@@ -90,7 +107,8 @@ if (window.updateVisitCounters) {
     } catch (error) {
         console.error("Erreur d'initialisation Microsoft :", error);
         showSignedOutProfile();
-        setLoginState("Impossible de vérifier la connexion. Actualisez la page et réessayez.");
+        setLoginState("Impossible de vérifier la connexion. Actualisez la page et réessayez." + authErrorMessage(error));
+        document.getElementById("retryLoginButton").hidden = false;
     }
 }
 
@@ -163,13 +181,14 @@ async function loginMicrosoft() {
     if (!authReady) return;
     try {
         setLoginState("Redirection vers Microsoft…", true);
-        await msalInstance.loginRedirect({
+        await withAuthTimeout(msalInstance.loginRedirect({
             scopes: ["User.Read"],
             prompt: "select_account"
-        });
+        }), 30000);
     } catch (error) {
         console.error("Erreur de connexion Microsoft :", error);
-        setLoginState("La connexion a échoué ou a été annulée. Vous pouvez réessayer.");
+        setLoginState("La connexion a échoué ou a été annulée. Vous pouvez réessayer." + authErrorMessage(error));
+        document.getElementById("retryLoginButton").hidden = false;
     }
 }
 

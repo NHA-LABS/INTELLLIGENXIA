@@ -1092,7 +1092,7 @@ function formatAnalysisText(value) {
 }
 
 async function loadArticlesFromSharePoint(silent = false) {
-    if (articlesLoading) return;
+    if (articlesLoading || typeof window.fetchSharePointArticles !== "function" || !window.getCurrentUser?.()) return;
 
     articlesLoading = true;
 
@@ -1356,38 +1356,6 @@ if (page === "Analyse documentaire") {
             }
         });
     }
-}
-// Enregistrement du document dans SharePoint
-if (saveButton) {
-    saveButton.addEventListener("click", async () => {
-
-        const file = fileInput.files[0];
-
-        if (!file) {
-            alert("Veuillez sélectionner un document.");
-            return;
-        }
-
-        saveButton.disabled = true;
-        saveButton.textContent = "Enregistrement en cours...";
-
-        try {
-            const result = await window.uploadDocumentToSharePoint(file);
-
-            alert("Document enregistré avec succès dans SharePoint !");
-            console.log("Document SharePoint :", result);
-
-            saveButton.textContent = "Document enregistré";
-
-        } catch (error) {
-            console.error("Erreur d'enregistrement :", error);
-
-            alert("Impossible d'enregistrer le document : " + error.message);
-
-            saveButton.disabled = false;
-            saveButton.textContent = "Enregistrer le document";
-        }
-    });
 }
 }
 function escapeHtml(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}

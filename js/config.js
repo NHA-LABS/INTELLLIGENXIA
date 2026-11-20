@@ -1,6 +1,6 @@
 
 export const CONFIG = {
-    clientId: import.meta.env.VITE_ENTRA_CLIENT_ID || "9e4f1be0-438e-415e-a5db-eebea0a04bc9",
+    clientId: import.meta.env.VITE_ENTRA_CLIENT_ID || "65fff909-ff47-42ef-bcb0-b4302a38fa48",
     tenantId: import.meta.env.VITE_ENTRA_TENANT_ID || "467092d2-790b-4de1-9b3e-38b384eb2a21",
     redirectUri: import.meta.env.VITE_ENTRA_REDIRECT_URI || new URL("redirect.html", window.location.href).href,
     logoutUri: import.meta.env.VITE_ENTRA_POST_LOGOUT_REDIRECT_URI || new URL("index.html", window.location.href).href,

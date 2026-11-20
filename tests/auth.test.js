@@ -16,13 +16,15 @@ function setup(account = null, failure = false) {
     const context = vm.createContext({
         CONFIG: { tenantId: 'nsia', clientId: 'app', redirectUri: 'https://example.org/redirect.html', logoutUri: 'https://example.org/index.html' },
         PublicClientApplication: class {
-            async initialize() { if (failure) throw new Error('network'); }
+            async initialize() { if (failure === 'timeout') return new Promise(() => {}); if (failure) throw new Error('network'); }
             async handleRedirectPromise() { return null; }
             getAllAccounts() { return account ? [account] : []; }
             getActiveAccount() { return account; }
             setActiveAccount() {}
             async loginRedirect(request) { loginRequest = request; throw new Error('cancelled'); }
         },
+        setTimeout: failure === 'timeout' ? callback => setTimeout(callback, 1) : setTimeout,
+        clearTimeout,
         document: { getElementById: element }, window: {}, console: { error() {}, info() {} }
     });
     vm.runInContext(source, context);
@@ -62,4 +64,11 @@ test('une connexion annulée peut être relancée et demande seulement le profil
     assert.deepEqual(Array.from(request().scopes), ['User.Read']);
     assert.equal(element('loginScreenButton').disabled, false);
     assert.match(element('loginStatus').textContent, /réessayer/);
+});
+test('une initialisation bloquée affiche un délai dépassé et permet de recharger', async () => {
+    const { context, element } = setup(null, 'timeout');
+    await vm.runInContext('initAuth()', context);
+    assert.match(element('loginStatus').textContent, /auth_timeout/);
+    assert.equal(element('retryLoginButton').hidden, false);
+    assert.equal(element('appShell').hidden, true);
 });
