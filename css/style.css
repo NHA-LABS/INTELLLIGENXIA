@@ -459,3 +459,39 @@
 [hidden] { display: none !important; }
 .login-card button:disabled { opacity: .65; cursor: wait; transform: none; }
 #loginStatus { margin: 16px 0 0; font-size: 12px; }
+
+/* =========================================================
+   TYPES DE VEILLE — à coller à la fin de css/style.css
+   ========================================================= */
+.type-clickable{cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.type-clickable:hover,.type-clickable:focus-visible{transform:translateY(-3px);border-color:#d7ad4c;box-shadow:0 12px 28px rgba(9,29,96,.12);outline:none}
+.type-open{display:block;margin-top:13px;color:#a97700;font-size:10px;font-weight:800}
+
+.type-tabs{display:flex;gap:4px;margin:22px 0 4px;border-bottom:1px solid var(--line)}
+.type-tab{border:0;background:none;padding:11px 16px;margin-bottom:-1px;border-bottom:3px solid transparent;color:var(--muted);font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.type-tab span{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:20px;background:#fff3d5;color:#9a710e;font-size:10px}
+.type-tab[aria-selected="true"]{color:#10265a;border-bottom-color:var(--gold)}
+.type-tab:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+#typePanelSynthese{margin-top:18px}
+
+.type-zuri{border-left:4px solid var(--gold)}
+.type-zuri-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.type-zuri-head h2{margin:0 0 4px}
+.type-zuri-head p{margin:0}
+.type-zuri-head .primary-button{margin:0;white-space:nowrap}
+.type-zuri-head .primary-button:disabled{opacity:.65;cursor:wait}
+.type-zuri-body{margin-top:14px;font-size:12px;line-height:1.75;color:#3f4d68;text-align:justify}
+.type-zuri-body strong{color:#10265a}
+.type-muted{font-size:11px;color:var(--muted);margin:0;text-align:left}
+
+.type-wide{grid-column:1/-1}
+.type-points{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.type-points li{display:flex;flex-direction:column;gap:4px;padding-bottom:12px;border-bottom:1px solid #edf0f5}
+.type-points li:last-child{border:0;padding-bottom:0}
+.type-point{border:0;background:none;padding:0;text-align:left;font:800 12px/1.45 Manrope,sans-serif;color:#10265a;cursor:pointer}
+.type-point:hover,.type-point:focus-visible{color:#a87500;text-decoration:underline;outline:none}
+.type-points span{font-size:11px;line-height:1.6;color:#53617a}
+.type-synthesis-grid .mini-bar-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.type-synthesis-grid .mini-bar-row:first-of-type{margin-top:0}
+
+@media(max-width:650px){.type-zuri-head{flex-direction:column}.type-tabs{overflow-x:auto}}

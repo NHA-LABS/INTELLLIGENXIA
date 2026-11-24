@@ -296,6 +296,99 @@ function listing(priorityOnly = false) {
 }
 
 
+/* =====================================================================
+   TYPES DE VEILLE — cartes cliquables, actualités et synthèse
+   ---------------------------------------------------------------------
+   À COLLER DANS js/app.js À LA PLACE de toute la fonction :
+       function typePage() { ... }
+   (de « function typePage() { » jusqu'à son « } » final,
+    juste avant « function assistant() {»)
+   ===================================================================== */
+
+// Mots-clés tolérés dans le champ SharePoint « Famille_Veille »
+const TYPE_KEYWORDS = {
+    "Veille concurrentielle": ["concurren"],
+    "Veille réglementaire et fiscalité": ["reglement", "fiscal", "juridi", "conformit"],
+    "Veille stratégique": ["strateg"],
+    "Veille technologique": ["techno", "innov", "digital"]
+};
+
+const TYPE_IGNORED_ACTORS = new Set([
+    "À vérifier",
+    "Non applicable",
+    "Test interne NSIA",
+    "AssurTest CI (acteur fictif — test interne)",
+    "Ivoire Assurance Démo — acteur entièrement fictif"
+].map(v => normalizeText(v)));
+
+let typeState = { name: "", tab: "articles", q: "", category: "", priority: "", sort: "recent" };
+const typeSyntheses = {}; // synthèses ZURI déjà générées, par type
+
+function normalizeText(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function articleMatchesType(article, typeName) {
+    const family = normalizeText(article.family);
+    if (!family) return false;
+    if (family === normalizeText(typeName)) return true;
+    return (TYPE_KEYWORDS[typeName] || []).some(keyword => family.includes(keyword));
+}
+
+function typeArticles(typeName) {
+    return articles.filter(a => articleMatchesType(a, typeName));
+}
+
+function articleTime(a) {
+    return new Date(a.rawDate || a.collectDate || 0).getTime() || 0;
+}
+
+function firstSentence(text, max = 220) {
+    const clean = String(text || "").replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+    if (!clean) return "";
+    const match = clean.match(/^.{30,}?[.!?](?=\s|$)/);
+    const sentence = match ? match[0] : clean;
+    return sentence.length > max
+        ? sentence.slice(0, max).replace(/\s+\S*$/, "") + "…"
+        : sentence;
+}
+
+function formatRichText(value) {
+    return escapeHtml(value)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\n/g, "<br>");
+}
+
+function countBy(list, getValues) {
+    const map = new Map();
+    list.forEach(a => {
+        const values = new Set(getValues(a).map(v => String(v || "").trim()).filter(Boolean));
+        values.forEach(v => {
+            const key = normalizeText(v);
+            if (!map.has(key)) map.set(key, { label: v, count: 0 });
+            map.get(key).count++;
+        });
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count);
+}
+
+function typeMiniBars(items, limit = 5) {
+    const top = items.slice(0, limit);
+    if (!top.length) return '<p class="type-muted">Aucune donnée renseignée dans SharePoint.</p>';
+    const max = Math.max(1, ...top.map(x => x.count));
+    return top.map(x => `
+        <div class="mini-bar-row">
+            <span title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</span>
+            <div class="mini-track"><i style="width:${Math.round(x.count / max * 100)}%"></i></div>
+            <b>${x.count}</b>
+        </div>`).join("");
+}
+
+/* ---------- Page « Types de veille » (cartes cliquables) ---------- */
 function typePage() {
     return `
         ${pageHeader(
@@ -306,23 +399,311 @@ function typePage() {
 
         <div class="type-grid">
             ${types.map(t => {
-                const count = articles.filter(a =>
-                    (a.family || "").trim().toLowerCase() ===
-                    t[0].trim().toLowerCase()
-                ).length;
-
+                const count = typeArticles(t[0]).length;
                 return `
-                    <article class="type-card">
+                    <article
+                        class="type-card type-clickable"
+                        role="button"
+                        tabindex="0"
+                        data-veille-type="${escapeHtml(t[0])}"
+                        aria-label="Consulter la ${escapeHtml(t[0].toLowerCase())}"
+                    >
                         <div class="type-icon">${t[3]}</div>
                         <h3>${t[0]}</h3>
                         <p>${t[1]}</p>
                         <span class="count">${count} actualité(s)</span>
+                        <span class="type-open">Consulter les actualités et la synthèse →</span>
                     </article>
                 `;
             }).join("")}
         </div>
     `;
 }
+
+function wireTypeCards() {
+    document.querySelectorAll("[data-veille-type]").forEach(card => {
+        const go = () => openType(card.dataset.veilleType);
+        card.addEventListener("click", go);
+        card.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                go();
+            }
+        });
+    });
+}
+
+/* ---------- Page détaillée d'un type de veille ---------- */
+function typeDetail(name) {
+    const type = types.find(t => t[0] === name);
+    if (!type) return typePage();
+
+    const list = typeArticles(name);
+    const countries = countBy(list, a => [a.country]);
+    const latest = [...list].sort((a, b) => articleTime(b) - articleTime(a))[0];
+    const categories = [...new Set(list.map(a => a.category).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "fr"));
+    const tab = typeState.tab;
+
+    return `
+        <button class="back-link" id="backToTypes">← Retour aux types de veille</button>
+
+        ${pageHeader("CLASSIFICATION DE L’INFORMATION", escapeHtml(name), escapeHtml(type[1]))}
+
+        <section class="competitor-profile panel">
+            <div><small>ACTUALITÉS</small><strong>${list.length}</strong></div>
+            <div><small>PRIORITAIRES</small><strong>${list.filter(a => a.priority).length}</strong></div>
+            <div><small>PAYS COUVERTS</small><strong>${countries.length}</strong></div>
+            <div><small>DERNIÈRE PUBLICATION</small><strong>${escapeHtml(latest?.date || "—")}</strong></div>
+        </section>
+
+        <div class="type-tabs" role="tablist" aria-label="Contenu de la veille">
+            <button type="button" role="tab" class="type-tab" data-type-tab="articles"
+                aria-selected="${tab === "articles"}">Actualités <span>${list.length}</span></button>
+            <button type="button" role="tab" class="type-tab" data-type-tab="synthese"
+                aria-selected="${tab === "synthese"}">Synthèse de la veille</button>
+        </div>
+
+        <section id="typePanelArticles" role="tabpanel" ${tab !== "articles" ? "hidden" : ""}>
+            ${list.length ? `
+                <div class="toolbar competitor-filters">
+                    <input class="filter-select" id="typeSearch" type="search"
+                        placeholder="Rechercher un titre, une source, un pays...">
+                    <select class="filter-select" id="typeCategory">
+                        <option value="">Toutes les sous-catégories</option>
+                        ${categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
+                    </select>
+                    <select class="filter-select" id="typePriority">
+                        <option value="">Toutes les priorités</option>
+                        <option value="yes">Prioritaires</option>
+                        <option value="no">Non prioritaires</option>
+                    </select>
+                    <select class="filter-select" id="typeSort">
+                        <option value="recent">Plus récentes d’abord</option>
+                        <option value="ancien">Plus anciennes d’abord</option>
+                        <option value="score">Score d’importance</option>
+                    </select>
+                </div>
+                <p class="page-subtitle" id="typeResultCount"></p>
+                <div class="article-list" id="typeArticleList"></div>
+            ` : `
+                <div class="empty-state">
+                    Aucune actualité n’est encore classée dans la ${escapeHtml(name.toLowerCase())}.
+                    Elles apparaîtront ici dès leur ajout dans SharePoint.
+                </div>
+            `}
+        </section>
+
+        <section id="typePanelSynthese" role="tabpanel" ${tab !== "synthese" ? "hidden" : ""}>
+            ${typeSynthesis(name, list)}
+        </section>
+    `;
+}
+
+function typeSynthesis(name, list) {
+    if (!list.length) {
+        return `<div class="empty-state">La synthèse sera disponible dès que des actualités seront classées dans ce type de veille.</div>`;
+    }
+
+    const sorted = [...list].sort((a, b) => articleTime(b) - articleTime(a));
+    const keyPoints = sorted.filter(a => a.analysis || a.summary).slice(0, 5);
+    const opportunities = sorted.filter(a => String(a.opportunities || "").trim()).slice(0, 3);
+    const threats = sorted.filter(a => String(a.threats || "").trim()).slice(0, 3);
+
+    const actors = countBy(list, a =>
+        String(a.competitor || "").split(/[;,]/).map(n => getCanonicalActor(n))
+    ).filter(x => !TYPE_IGNORED_ACTORS.has(normalizeText(x.label)));
+    const countries = countBy(list, a => [a.country]);
+
+    const points = (items, field) => `
+        <ul class="type-points">
+            ${items.map(a => `
+                <li>
+                    <button type="button" class="type-point" data-type-article="${escapeHtml(a.id)}">
+                        ${escapeHtml(a.title)}
+                    </button>
+                    <span>${escapeHtml(firstSentence(a[field] || a.summary))}</span>
+                </li>`).join("")}
+        </ul>`;
+
+    const zuriText = typeSyntheses[name];
+    const zuriAvailable = typeof window.askIntelligenxia === "function";
+
+    return `
+        <section class="panel type-zuri">
+            <div class="type-zuri-head">
+                <div>
+                    <h2>Synthèse ZURI</h2>
+                    <p>Lecture d’ensemble des ${Math.min(list.length, 20)} actualités les plus récentes de ce type de veille.</p>
+                </div>
+                ${zuriAvailable ? `
+                    <button class="primary-button" id="generateTypeSynthesis" type="button">
+                        ${zuriText ? "Régénérer la synthèse" : "Générer la synthèse"}
+                    </button>` : ""}
+            </div>
+            <div class="type-zuri-body" id="typeZuriBody" aria-live="polite">
+                ${zuriText
+                    ? formatRichText(zuriText)
+                    : zuriAvailable
+                        ? '<p class="type-muted">Cliquez sur « Générer la synthèse » pour que ZURI dégage les tendances, les enjeux pour le Groupe et les recommandations.</p>'
+                        : '<p class="type-muted">ZURI n’est pas disponible pour le moment. Les points clés ci-dessous sont tirés des analyses SharePoint.</p>'}
+            </div>
+        </section>
+
+        <section class="analysis-grid type-synthesis-grid">
+            <article class="analysis-card type-wide">
+                <div class="analysis-card-head"><span class="analysis-number">01</span><h3>Ce qu’il faut retenir</h3></div>
+                ${keyPoints.length ? points(keyPoints, "analysis") : '<p class="type-muted">Aucune analyse renseignée.</p>'}
+            </article>
+
+            <article class="analysis-card">
+                <div class="analysis-card-head"><span class="analysis-number">02</span><h3>Opportunités relevées</h3></div>
+                ${opportunities.length ? points(opportunities, "opportunities") : '<p class="type-muted">Aucune opportunité renseignée.</p>'}
+            </article>
+
+            <article class="analysis-card">
+                <div class="analysis-card-head"><span class="analysis-number">03</span><h3>Menaces relevées</h3></div>
+                ${threats.length ? points(threats, "threats") : '<p class="type-muted">Aucune menace renseignée.</p>'}
+            </article>
+
+            <article class="analysis-card">
+                <div class="analysis-card-head"><span class="analysis-number">04</span><h3>Acteurs les plus cités</h3></div>
+                ${typeMiniBars(actors)}
+            </article>
+
+            <article class="analysis-card">
+                <div class="analysis-card-head"><span class="analysis-number">05</span><h3>Pays concernés</h3></div>
+                ${typeMiniBars(countries)}
+            </article>
+        </section>
+    `;
+}
+
+function renderTypeArticleList() {
+    const box = document.getElementById("typeArticleList");
+    if (!box) return;
+
+    const q = normalizeText(typeState.q);
+    const list = typeArticles(typeState.name).filter(a =>
+        (!typeState.category || a.category === typeState.category) &&
+        (typeState.priority !== "yes" || a.priority) &&
+        (typeState.priority !== "no" || !a.priority) &&
+        (!q || normalizeText(`${a.title} ${a.summary} ${a.source} ${a.country} ${a.competitor}`).includes(q))
+    );
+
+    if (typeState.sort === "ancien") list.sort((a, b) => articleTime(a) - articleTime(b));
+    else if (typeState.sort === "score") list.sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0) || articleTime(b) - articleTime(a));
+    else list.sort((a, b) => articleTime(b) - articleTime(a));
+
+    const counter = document.getElementById("typeResultCount");
+    if (counter) counter.textContent = `${list.length} actualité(s)`;
+
+    box.innerHTML = list.length
+        ? list.map(articleCard).join("")
+        : '<div class="empty-state">Aucune actualité ne correspond à ces filtres. Modifiez la recherche ou les filtres.</div>';
+}
+
+function buildTypeSynthesisPrompt(name, list) {
+    const items = [...list]
+        .sort((a, b) => articleTime(b) - articleTime(a))
+        .slice(0, 20)
+        .map((a, i) =>
+            `${i + 1}. ${a.title} (${a.date || "date inconnue"}${a.country ? ", " + a.country : ""}) : ${firstSentence(a.analysis || a.summary, 300)}`
+        )
+        .join("\n");
+
+    return `Tu es ZURI, l’assistant de veille du Groupe NSIA. À partir uniquement des actualités ci-dessous, classées en « ${name} », rédige en français une synthèse stratégique d’environ 250 mots, en trois parties titrées en gras : **Tendances principales**, **Enjeux pour le Groupe NSIA et ses filiales**, **Recommandations prioritaires**.\n\n${items}`;
+}
+
+async function generateTypeSynthesis(name) {
+    const button = document.getElementById("generateTypeSynthesis");
+    const body = document.getElementById("typeZuriBody");
+    if (!button || !body || typeof window.askIntelligenxia !== "function") return;
+
+    button.disabled = true;
+    button.textContent = "Rédaction en cours…";
+    body.innerHTML = '<p class="type-muted">ZURI rédige la synthèse à partir des actualités de ce type de veille…</p>';
+
+    try {
+        const answers = await window.askIntelligenxia(buildTypeSynthesisPrompt(name, typeArticles(name)));
+        const text = (answers || []).join("\n\n").trim();
+        if (!text) throw new Error("Réponse vide de ZURI.");
+        typeSyntheses[name] = text;
+        if (typeState.name === name) body.innerHTML = formatRichText(text);
+        button.textContent = "Régénérer la synthèse";
+    } catch (error) {
+        console.error("Synthèse ZURI impossible :", error);
+        if (typeState.name === name) {
+            body.innerHTML = `<p class="type-muted">ZURI n’a pas pu générer la synthèse (${escapeHtml(error.message || "erreur inconnue")}). Réessayez dans quelques instants.</p>`;
+        }
+        button.textContent = "Réessayer";
+    } finally {
+        button.disabled = false;
+    }
+}
+
+function openType(name, keepState = false) {
+    if (!keepState || typeState.name !== name) {
+        typeState = { name, tab: "articles", q: "", category: "", priority: "", sort: "recent" };
+    }
+
+    content.innerHTML = typeDetail(name);
+
+    document.querySelectorAll(".nav-link").forEach(b =>
+        b.classList.toggle("active", b.dataset.page === "Types de veille")
+    );
+
+    wireTypeDetail(name);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function openArticleFromType(id) {
+    window.articleOrigin = { type: typeState.name };
+    openArticle(id);
+}
+
+function wireTypeDetail(name) {
+    document.getElementById("backToTypes")?.addEventListener("click", () => render("Types de veille"));
+
+    document.querySelectorAll("[data-type-tab]").forEach(tab => {
+        tab.addEventListener("click", () => {
+            typeState.tab = tab.dataset.typeTab;
+            document.querySelectorAll("[data-type-tab]").forEach(t =>
+                t.setAttribute("aria-selected", String(t === tab))
+            );
+            document.getElementById("typePanelArticles").hidden = typeState.tab !== "articles";
+            document.getElementById("typePanelSynthese").hidden = typeState.tab !== "synthese";
+        });
+    });
+
+    const bind = (id, key, eventName) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = typeState[key];
+        el.addEventListener(eventName, () => {
+            typeState[key] = el.value;
+            renderTypeArticleList();
+        });
+    };
+    bind("typeSearch", "q", "input");
+    bind("typeCategory", "category", "change");
+    bind("typePriority", "priority", "change");
+    bind("typeSort", "sort", "change");
+
+    document.getElementById("typeArticleList")?.addEventListener("click", e => {
+        const button = e.target.closest("[data-open-article]");
+        if (button) openArticleFromType(button.dataset.openArticle);
+    });
+
+    document.getElementById("typePanelSynthese")?.addEventListener("click", e => {
+        const point = e.target.closest("[data-type-article]");
+        if (point) openArticleFromType(point.dataset.typeArticle);
+        if (e.target.closest("#generateTypeSynthesis")) generateTypeSynthesis(name);
+    });
+
+    renderTypeArticleList();
+}
+/* ===================== FIN DU BLOC TYPES DE VEILLE ===================== */
 
 function assistant() {
     return `
@@ -1182,9 +1563,23 @@ function openCompetitor(name) {
 }
 
 function wireCompetitorDetail(){document.getElementById("backToCompetitors")?.addEventListener("click",()=>render("Concurrents"));document.querySelectorAll("[data-open-article]").forEach(b=>b.addEventListener("click",()=>openArticle(b.dataset.openArticle)));}
-function openArticle(id){content.innerHTML=articleDetail(id);document.querySelectorAll(".nav-link").forEach(b=>b.classList.toggle("active",b.dataset.page==="Actualités"));wireDetail();window.scrollTo({top:0,behavior:"smooth"});}
-function wireDetail(){const back=()=>render("Actualités");document.getElementById("backToNews")?.addEventListener("click",back);document.getElementById("backToNewsBottom")?.addEventListener("click",back);document.getElementById("printAnalysis")?.addEventListener("click",()=>window.print());}
+function openArticle(id){
+    content.innerHTML = articleDetail(id);
+    const fromType = window.articleOrigin?.type;
+    document.querySelectorAll(".nav-link").forEach(b => b.classList.toggle("active", b.dataset.page === (fromType ? "Types de veille" : "Actualités")));
+    if (fromType) document.querySelectorAll("#backToNews,#backToNewsBottom").forEach(b => b.textContent = "← Retour à la " + fromType.toLowerCase());
+    wireDetail();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function wireDetail(){
+    const origin = window.articleOrigin;
+    const back = () => { window.articleOrigin = null; origin?.type ? openType(origin.type, true) : render("Actualités"); };
+    document.getElementById("backToNews")?.addEventListener("click", back);
+    document.getElementById("backToNewsBottom")?.addEventListener("click", back);
+    document.getElementById("printAnalysis")?.addEventListener("click", () => window.print());
+}
 function wirePage(page){
+    if (page === "Types de veille") wireTypeCards();
     // Carrousel des actualités prioritaires
 if (page === "Accueil") {
 
