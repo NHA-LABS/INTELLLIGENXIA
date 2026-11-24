@@ -9,7 +9,8 @@ export const CONFIG = {
         siteId: import.meta.env.VITE_SHAREPOINT_SITE_ID || "assurancesnsia.sharepoint.com,35765e6b-5df0-4cde-8ef9-47fe5fafb4c3,5eced96b-88c1-4917-8510-a05551d4f426",
         articlesListId: import.meta.env.VITE_SHAREPOINT_ARTICLES_LIST_ID || "29a2ac9d-98ff-4731-b8b3-d151e8b7bb00",
         visitsListId: import.meta.env.VITE_SHAREPOINT_VISITS_LIST_ID || "45901f50-8e8b-4bd1-92c8-d412ad20d850",
-        documentsDriveId: import.meta.env.VITE_SHAREPOINT_DOCUMENTS_DRIVE_ID || "b!a152NfBd3kyO-Uf-X6-0w2vZzl7BiBdJhRCgVVHU9CZfrqr0z_RWRI0zc4xmUX2M"
+        documentsDriveId: import.meta.env.VITE_SHAREPOINT_DOCUMENTS_DRIVE_ID || "b!a152NfBd3kyO-Uf-X6-0w2vZzl7BiBdJhRCgVVHU9CZfrqr0z_RWRI0zc4xmUX2M",
+        votesListId: import.meta.env.VITE_SHAREPOINT_VOTES_LIST_ID || "7b697c93-d693-479c-8c61-4cfb5105e3eb",
     },
 
     copilot: {

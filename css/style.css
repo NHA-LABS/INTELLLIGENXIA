@@ -495,3 +495,13 @@
 .type-synthesis-grid .mini-bar-row:first-of-type{margin-top:0}
 
 @media(max-width:650px){.type-zuri-head{flex-direction:column}.type-tabs{overflow-x:auto}}
+/* =========================================================
+   VOTES DE PERTINENCE — à coller à la fin de css/style.css
+   ========================================================= */
+.vote-button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.vote-button.vote-positif.is-active{background:#e8f8f0;border-color:#16845b;color:#16845b}
+.vote-button.vote-positif.is-active strong{color:#16845b}
+.vote-button.vote-negatif.is-active{background:#fdeeee;border-color:#c24141;color:#a83232}
+.vote-button.vote-negatif.is-active strong{color:#a83232}
+.vote-button[aria-busy="true"]{opacity:.6;cursor:wait}
+.vote-button strong{min-width:10px;text-align:center}

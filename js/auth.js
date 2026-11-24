@@ -427,6 +427,142 @@ async function uploadDocumentToSharePoint(file) {
 window.uploadDocumentToSharePoint = uploadDocumentToSharePoint;
 
 window.testSharePointConnection = testSharePointConnection;
+/* =====================================================================
+   VOTES DE PERTINENCE — à coller dans js/auth.js
+   EMPLACEMENT : tout en bas du fichier, JUSTE AVANT la dernière ligne
+                 export { initAuth };
+   ===================================================================== */
+
+// Colonnes de la liste SharePoint INTELLIGENXIA_EVALUATIONS (noms internes)
+const VOTE_COLUMNS = {
+    article: "ArticleID",
+    email: "EmailUtilisateur",
+    vote: "Evaluation",
+    date: "DateEvaluation"
+};
+
+// Valeurs écrites dans la colonne « Evaluation »
+const VOTE_VALUES = {
+    positif: "Pertinent",
+    negatif: "Peu pertinent"
+};
+
+// Mettre true si la colonne ArticleID est de type « Nombre » dans SharePoint
+const ARTICLE_ID_IS_NUMBER = false;
+
+function normalizeVoteValue(value) {
+    const v = String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    if (v === "positif" || v === VOTE_VALUES.positif.toLowerCase()) return "positif";
+    if (v === "negatif" || v === VOTE_VALUES.negatif.toLowerCase()) return "negatif";
+    return null;
+}
+
+function votesListEndpoint() {
+    const listId = CONFIG.sharepoint.votesListId;
+    if (!listId) {
+        throw new Error("La liste SharePoint des votes n'est pas configurée (votesListId dans config.js).");
+    }
+    return `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharepoint.siteId}/lists/${listId}/items`;
+}
+
+// Appel Microsoft Graph (lecture ou écriture) avec le compte connecté
+async function graphRequest(url, { method = "GET", body, write = false } = {}) {
+    const account = getCurrentUser();
+    if (!account) throw new Error("Connectez-vous avec votre compte Microsoft NSIA.");
+
+    const tokenResult = await msalInstance.acquireTokenSilent({
+        scopes: [write ? "Sites.ReadWrite.All" : "Sites.Read.All"],
+        account
+    });
+
+    const response = await fetch(url, {
+        method,
+        headers: {
+            Authorization: `Bearer ${tokenResult.accessToken}`,
+            Accept: "application/json",
+            ...(body ? { "Content-Type": "application/json" } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+
+    if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`SharePoint a répondu ${response.status}. ${details.slice(0, 300)}`);
+    }
+
+    return response.status === 204 ? null : response.json();
+}
+
+// Lit tous les votes enregistrés (toutes pages), sous une forme simplifiée
+async function fetchArticleVotes() {
+    const select = Object.values(VOTE_COLUMNS).join(",");
+    let nextUrl = `${votesListEndpoint()}?$expand=fields($select=${select})&$top=200`;
+    const items = [];
+
+    while (nextUrl) {
+        const data = await graphRequest(nextUrl);
+        items.push(...(data.value || []));
+        nextUrl = data["@odata.nextLink"] || null;
+    }
+
+    return items.map(item => {
+        const f = item.fields || {};
+        return {
+            id: item.id,
+            lastModifiedDateTime: item.lastModifiedDateTime || "",
+            articleId: String(f[VOTE_COLUMNS.article] ?? "").trim(),
+            email: String(f[VOTE_COLUMNS.email] || "").trim().toLowerCase(),
+            vote: normalizeVoteValue(f[VOTE_COLUMNS.vote])
+        };
+    });
+}
+
+// Enregistre, modifie ou retire le vote du collaborateur connecté
+// vote : "positif", "negatif" ou null (retrait du vote)
+async function saveArticleVote(articleId, vote, itemId, articleTitle = "") {
+    const email = getCurrentUserEmail();
+    if (!email) throw new Error("Connectez-vous avec votre compte Microsoft NSIA.");
+
+    const base = votesListEndpoint();
+    const now = new Date().toISOString();
+
+    if (!vote) {
+        if (itemId) await graphRequest(`${base}/${itemId}`, { method: "DELETE", write: true });
+        return { itemId: null };
+    }
+
+    if (itemId) {
+        await graphRequest(`${base}/${itemId}/fields`, {
+            method: "PATCH",
+            body: {
+                [VOTE_COLUMNS.vote]: VOTE_VALUES[vote],
+                [VOTE_COLUMNS.date]: now
+            },
+            write: true
+        });
+        return { itemId };
+    }
+
+    const created = await graphRequest(base, {
+        method: "POST",
+        body: {
+            fields: {
+                Title: String(articleTitle || `Article ${articleId}`).slice(0, 250),
+                [VOTE_COLUMNS.article]: ARTICLE_ID_IS_NUMBER ? Number(articleId) : String(articleId),
+                [VOTE_COLUMNS.email]: email,
+                [VOTE_COLUMNS.vote]: VOTE_VALUES[vote],
+                [VOTE_COLUMNS.date]: now
+            }
+        },
+        write: true
+    });
+    return { itemId: created.id };
+}
+
+window.fetchArticleVotes = fetchArticleVotes;
+window.saveArticleVote = saveArticleVote;
+window.getCurrentUserEmail = getCurrentUserEmail;
+/* ===================== FIN DU BLOC VOTES (auth.js) ===================== */
 
 export { initAuth };
 

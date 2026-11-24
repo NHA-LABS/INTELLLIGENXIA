@@ -8,6 +8,158 @@ let articlesLoadError = "";
 let featuredArticles = [];
 let featuredIndex = 0;
 let featuredCarouselTimer = null;
+/* =====================================================================
+   VOTES DE PERTINENCE — à coller dans js/app.js
+   EMPLACEMENT : en haut du fichier, JUSTE APRÈS la ligne
+                 let featuredCarouselTimer = null;
+   ===================================================================== */
+
+const articleVotes = new Map();   // id article → { positif, negatif, mine, myItemId }
+const votesPending = new Set();   // articles dont le vote est en cours d'enregistrement
+let votesLoaded = false;
+
+function getVoteEntry(articleId) {
+    const key = String(articleId);
+    if (!articleVotes.has(key)) {
+        articleVotes.set(key, { positif: 0, negatif: 0, mine: null, myItemId: null });
+    }
+    return articleVotes.get(key);
+}
+
+// Construit les compteurs à partir des lignes SharePoint
+// (un seul vote retenu par collaborateur et par article : le plus récent)
+function buildArticleVotes(items) {
+    const email = (window.getCurrentUserEmail?.() || "").toLowerCase();
+    const latest = new Map();
+
+    items.forEach(item => {
+        const { articleId, email: voter, vote } = item;
+        if (!articleId || !voter || !vote) return;
+
+        const key = articleId + "|" + voter;
+        const previous = latest.get(key);
+        if (!previous || String(item.lastModifiedDateTime) > String(previous.item.lastModifiedDateTime)) {
+            latest.set(key, { item, articleId, voter, vote });
+        }
+    });
+
+    articleVotes.clear();
+    latest.forEach(({ item, articleId, voter, vote }) => {
+        const entry = getVoteEntry(articleId);
+        entry[vote]++;
+        if (voter === email) {
+            entry.mine = vote;
+            entry.myItemId = item.id;
+        }
+    });
+}
+
+async function refreshArticleVotes() {
+    if (typeof window.fetchArticleVotes !== "function") return;
+    if (votesPending.size) return; // ne pas écraser un vote en cours d'envoi
+
+    try {
+        const items = await window.fetchArticleVotes();
+        if (votesPending.size) return;
+        buildArticleVotes(items);
+        votesLoaded = true;
+        updateVoteButtons();
+    } catch (error) {
+        console.error("Chargement des votes impossible :", error);
+    }
+}
+
+// HTML des boutons, utilisé dans articleCard()
+function voteButtons(articleId) {
+    const id = escapeHtml(String(articleId));
+    const e = getVoteEntry(articleId);
+    const button = (vote, icon, label) => `
+        <button type="button"
+            class="vote-button vote-${vote} ${e.mine === vote ? "is-active" : ""}"
+            data-vote="${vote}"
+            aria-pressed="${e.mine === vote}"
+            title="${e.mine === vote ? "Retirer mon avis" : label}">
+            ${icon} <span>${label}</span> <strong>${votesLoaded ? e[vote] : "–"}</strong>
+        </button>`;
+
+    return `
+        <div class="article-voting" data-vote-article="${id}">
+            <span>Cet article vous semble-t-il pertinent ?</span>
+            ${button("positif", "👍", "Pertinent")}
+            ${button("negatif", "👎", "Peu pertinent")}
+        </div>`;
+}
+
+// Met à jour les boutons déjà affichés sans recharger la page
+function updateVoteButtons(articleId) {
+    const selector = articleId === undefined
+        ? "[data-vote-article]"
+        : `[data-vote-article="${CSS.escape(String(articleId))}"]`;
+
+    document.querySelectorAll(selector).forEach(box => {
+        const id = box.dataset.voteArticle;
+        const e = getVoteEntry(id);
+        const pending = votesPending.has(String(id));
+        box.classList.toggle("is-saving", pending);
+
+        box.querySelectorAll("[data-vote]").forEach(btn => {
+            const vote = btn.dataset.vote;
+            const active = e.mine === vote;
+            btn.classList.toggle("is-active", active);
+            btn.setAttribute("aria-pressed", String(active));
+            btn.setAttribute("aria-busy", String(pending));
+            btn.title = active ? "Retirer mon avis" : (vote === "positif" ? "Pertinent" : "Peu pertinent");
+            btn.querySelector("strong").textContent = votesLoaded ? e[vote] : "–";
+        });
+    });
+}
+
+async function handleVote(articleId, vote) {
+    const key = String(articleId);
+    if (votesPending.has(key)) return;
+
+    if (typeof window.saveArticleVote !== "function") {
+        showToast("Le vote n'est pas encore disponible.");
+        return;
+    }
+
+    const entry = getVoteEntry(key);
+    const before = { ...entry };
+    const newVote = entry.mine === vote ? null : vote; // recliquer = retirer son avis
+
+    // Affichage immédiat
+    if (entry.mine) entry[entry.mine] = Math.max(0, entry[entry.mine] - 1);
+    if (newVote) entry[newVote]++;
+    entry.mine = newVote;
+    votesLoaded = true;
+    votesPending.add(key);
+    updateVoteButtons(key);
+
+    try {
+        const title = articles.find(a => String(a.id) === key)?.title || "";
+        const result = await window.saveArticleVote(key, newVote, before.myItemId, title);
+        entry.myItemId = result?.itemId ?? null;
+        showToast(newVote ? "Merci, votre avis a été enregistré." : "Votre avis a été retiré.");
+    } catch (error) {
+        console.error("Enregistrement du vote impossible :", error);
+        Object.assign(entry, before);
+        showToast("Votre avis n'a pas pu être enregistré. Réessayez.");
+    } finally {
+        votesPending.delete(key);
+        updateVoteButtons(key);
+    }
+}
+
+// Un seul écouteur pour tous les boutons de vote, sur toutes les pages
+content.addEventListener("click", event => {
+    const button = event.target.closest(".vote-button[data-vote]");
+    const box = button?.closest("[data-vote-article]");
+    if (!button || !box) return;
+    event.stopPropagation();
+    handleVote(box.dataset.voteArticle, button.dataset.vote);
+});
+/* ===================== FIN DU BLOC VOTES (app.js) ===================== */
+
 
 const INTELLIGENXIA_URL = CONFIG.copilot.chatUrl;
 
@@ -93,15 +245,7 @@ function articleCard(a) {
 
             <small>${escapeHtml(a.source || "")}${a.country ? " · " + escapeHtml(a.country) : ""}</small>
 
-            <div class="article-voting">
-                <span>Cet article vous semble-t-il pertinent ?</span>
-                <button class="vote-button" data-vote="positif" data-article-id="${a.id}">
-                    👍 <span>Pertinent</span> <strong>0</strong>
-                </button>
-                <button class="vote-button" data-vote="negatif" data-article-id="${a.id}">
-                    👎 <span>Peu pertinent</span> <strong>0</strong>
-                </button>
-            </div>
+                        ${voteButtons(a.id)}
         </div>
 
         <button class="outline-button" data-open-article="${a.id}">
@@ -1521,6 +1665,7 @@ category: f.AjouterCategorie || "",
                 image: f.URL_Image || ""
             };
         });
+                refreshArticleVotes();
 
     } catch (error) {
         articlesLoadError = error.message || String(error);
