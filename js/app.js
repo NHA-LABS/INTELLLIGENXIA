@@ -1317,44 +1317,264 @@ function competitorDetail(name, filters = {}) {
         </p>
     `;
 }
-function documentAnalysisPage(){
+/* =====================================================================
+   REMONTÉE DOCUMENTAIRE — nouvelle page
+   À COLLER DANS js/app.js À LA PLACE de toute la fonction :
+       function documentAnalysisPage(){ ... }
+   ===================================================================== */
+
+const DOC_EXTENSIONS = {
+    pdf:  { label: "PDF",   kind: "pdf" },
+    doc:  { label: "Word",  kind: "word" },
+    docx: { label: "Word",  kind: "word" },
+    png:  { label: "Image", kind: "image" },
+    jpg:  { label: "Image", kind: "image" },
+    jpeg: { label: "Image", kind: "image" },
+    webp: { label: "Image", kind: "image" }
+};
+const DOC_ACCEPT = Object.keys(DOC_EXTENSIONS).map(ext => "." + ext).join(",");
+const DOC_MAX_SIZE = 25 * 1024 * 1024; // 25 Mo
+
+let selectedDocument = null; // fichier choisi
+let savedDocument = null;    // réponse SharePoint après enregistrement
+
+function documentAnalysisPage() {
     return `
-        <section class="page-header">
-            <div>
-                <h1>Analyse documentaire</h1>
-                <p>Déposez vos documents et laissez INTELLIGENXIA en extraire les informations stratégiques.</p>
-            </div>
-        </section>
+        ${pageHeader(
+            "REMONTÉE DOCUMENTAIRE",
+            "Analyse documentaire",
+            "Déposez un document Word, un PDF ou la photo d’un texte : il est enregistré dans SharePoint, puis ZURI en extrait les informations utiles au Groupe."
+        )}
 
-       <section class="document-analysis-container">
-    <div class="document-upload-card">
-        <h2>Importer un document</h2>
-        <p>Formats acceptés : PDF, Word et images.</p>
+        <div class="doc-layout">
+            <section class="doc-main" aria-labelledby="docUploadTitle">
+                <h2 id="docUploadTitle" class="doc-title">Importer un document</h2>
 
-        <div class="document-upload-zone">
-            <div class="upload-icon">📄</div>
-            <h3>Sélectionnez votre document</h3>
-            <p>Choisissez un fichier depuis votre ordinateur.</p>
+                <label class="doc-dropzone" id="docDropzone" for="documentFile">
+                    <input type="file" id="documentFile" accept="${DOC_ACCEPT}" class="doc-file-input">
+                    <svg class="doc-illustration" viewBox="0 0 120 140" aria-hidden="true">
+                        <path class="doc-sheet-back" d="M28 16h52l24 24v84a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V24a8 8 0 0 1 8-8Z"/>
+                        <path class="doc-sheet" d="M18 8h52l24 24v84a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z"/>
+                        <path class="doc-fold" d="M70 8v18a6 6 0 0 0 6 6h18"/>
+                        <rect class="doc-line doc-line-gold" x="24" y="48" width="40" height="5" rx="2.5"/>
+                        <rect class="doc-line" x="24" y="62" width="56" height="4" rx="2"/>
+                        <rect class="doc-line" x="24" y="73" width="50" height="4" rx="2"/>
+                        <rect class="doc-line" x="24" y="84" width="56" height="4" rx="2"/>
+                        <rect class="doc-line" x="24" y="95" width="34" height="4" rx="2"/>
+                    </svg>
+                    <span class="doc-drop-text">
+                        <strong>Glissez votre document ici</strong>
+                        <span>ou <u>choisissez un fichier</u> sur votre ordinateur</span>
+                    </span>
+                    <span class="doc-formats">PDF, Word (.doc, .docx), images JPG ou PNG · 25 Mo maximum</span>
+                </label>
 
-            <input
-                type="file"
-                id="documentFile"
-                accept=".pdf,.doc,.docx,image/*"
-            >
-            <div class="document-actions">
-    <button type="button" id="saveDocumentBtn">
-        Enregistrer le document
-    </button>
+                <div class="doc-file" id="docFile" hidden></div>
 
-    <button type="button" id="analyzeDocumentBtn" disabled>
-        Analyser avec INTELLIGENXIA
-    </button>
-</div>
+                <p class="doc-status" id="docStatus" role="status" aria-live="polite"></p>
+
+                <div class="doc-actions">
+                    <button type="button" class="outline-button doc-btn" id="saveDocumentBtn" disabled>
+                        Enregistrer dans SharePoint
+                    </button>
+                    <button type="button" class="primary-button doc-btn" id="analyzeDocumentBtn" disabled>
+                        Analyser avec ZURI
+                    </button>
+                </div>
+            </section>
+
+            <aside class="doc-side">
+                <section class="doc-panel">
+                    <h2 class="doc-title">Comment ça marche</h2>
+                    <ol class="doc-steps">
+                        <li><span><strong>Déposez</strong> votre document dans la zone prévue.</span></li>
+                        <li><span><strong>Enregistrez-le</strong> : il rejoint la bibliothèque SharePoint du Groupe.</span></li>
+                        <li><span><strong>Lancez l’analyse</strong> : ZURI résume le contenu et en dégage les enjeux.</span></li>
+                    </ol>
+                </section>
+
+                <section class="doc-panel doc-result" aria-labelledby="docResultTitle">
+                    <h2 id="docResultTitle" class="doc-title">Résultat de l’analyse</h2>
+                    <div class="doc-result-body" id="docResultBody" aria-live="polite">
+                        <p class="doc-muted">Le résumé et les enjeux de votre document s’afficheront ici après l’analyse.</p>
+                    </div>
+                </section>
+            </aside>
         </div>
-    </div>
-</section>
     `;
 }
+
+function docExtension(file) {
+    return (file?.name.split(".").pop() || "").toLowerCase();
+}
+
+function docFormatSize(bytes) {
+    if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + " Ko";
+    return (bytes / (1024 * 1024)).toFixed(1).replace(".", ",") + " Mo";
+}
+
+function docSetStatus(message, tone = "") {
+    const status = document.getElementById("docStatus");
+    if (!status) return;
+    status.className = "doc-status" + (tone ? " is-" + tone : "");
+    status.innerHTML = message;
+}
+
+function docRenderFile() {
+    const box = document.getElementById("docFile");
+    const dropzone = document.getElementById("docDropzone");
+    const saveButton = document.getElementById("saveDocumentBtn");
+    const analyzeButton = document.getElementById("analyzeDocumentBtn");
+    if (!box) return;
+
+    if (!selectedDocument) {
+        box.hidden = true;
+        box.innerHTML = "";
+        dropzone?.classList.remove("has-file");
+        if (saveButton) { saveButton.disabled = true; saveButton.textContent = "Enregistrer dans SharePoint"; }
+        if (analyzeButton) analyzeButton.disabled = true;
+        return;
+    }
+
+    const type = DOC_EXTENSIONS[docExtension(selectedDocument)];
+    box.hidden = false;
+    box.innerHTML = `
+        <span class="doc-type doc-type-${type.kind}">${docExtension(selectedDocument).toUpperCase()}</span>
+        <span class="doc-file-info">
+            <strong title="${escapeHtml(selectedDocument.name)}">${escapeHtml(selectedDocument.name)}</strong>
+            <small>${type.label} · ${docFormatSize(selectedDocument.size)}${savedDocument ? " · enregistré dans SharePoint" : ""}</small>
+        </span>
+        <button type="button" class="doc-remove" id="docRemove" aria-label="Retirer ce document">
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>`;
+    dropzone?.classList.add("has-file");
+
+    if (saveButton) {
+        saveButton.disabled = !!savedDocument;
+        saveButton.textContent = savedDocument ? "Enregistré dans SharePoint" : "Enregistrer dans SharePoint";
+    }
+    if (analyzeButton) analyzeButton.disabled = false;
+
+    document.getElementById("docRemove")?.addEventListener("click", () => {
+        selectedDocument = null;
+        savedDocument = null;
+        const input = document.getElementById("documentFile");
+        if (input) input.value = "";
+        docSetStatus("");
+        docRenderFile();
+    });
+}
+
+function docSelectFile(file) {
+    if (!file) return;
+
+    if (!DOC_EXTENSIONS[docExtension(file)]) {
+        docSetStatus("Ce format n’est pas pris en charge. Choisissez un PDF, un document Word (.doc, .docx) ou une image JPG ou PNG.", "error");
+        return;
+    }
+    if (file.size > DOC_MAX_SIZE) {
+        docSetStatus(`Ce fichier fait ${docFormatSize(file.size)}. La taille maximale est de 25 Mo : compressez-le ou divisez-le avant de le déposer.`, "error");
+        return;
+    }
+
+    selectedDocument = file;
+    savedDocument = null;
+    docSetStatus("");
+    docRenderFile();
+}
+
+async function docSave() {
+    const button = document.getElementById("saveDocumentBtn");
+    if (!selectedDocument || !button) return;
+
+    if (typeof window.uploadDocumentToSharePoint !== "function") {
+        docSetStatus("L’enregistrement n’est pas disponible. Actualisez la page puis reconnectez-vous.", "error");
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Enregistrement en cours…";
+    docSetStatus("Envoi du document vers SharePoint…");
+
+    try {
+        savedDocument = await window.uploadDocumentToSharePoint(selectedDocument);
+        const link = savedDocument?.webUrl
+            ? ` <a href="${escapeHtml(savedDocument.webUrl)}" target="_blank" rel="noopener">Ouvrir dans SharePoint</a>`
+            : "";
+        docSetStatus("Document enregistré dans SharePoint." + link, "success");
+        showToast("Document enregistré dans SharePoint.");
+    } catch (error) {
+        console.error("Erreur d'enregistrement :", error);
+        const message = String(error?.message || error);
+        docSetStatus(
+            /AADSTS65001|consent/i.test(message)
+                ? "L’enregistrement est bloqué : l’autorisation d’écriture dans SharePoint n’a pas encore été accordée par l’administrateur."
+                : "Le document n’a pas pu être enregistré. Vérifiez votre connexion puis réessayez.",
+            "error"
+        );
+    } finally {
+        docRenderFile();
+    }
+}
+
+async function docAnalyze() {
+    const button = document.getElementById("analyzeDocumentBtn");
+    const result = document.getElementById("docResultBody");
+    if (!selectedDocument || !button || !result) return;
+
+    // Point d'entrée pour brancher l'agent IA :
+    // window.analyzeDocumentWithAgent(fichier, documentSharePoint) doit renvoyer un texte.
+    if (typeof window.analyzeDocumentWithAgent !== "function") {
+        result.innerHTML = `<p class="doc-muted">L’analyse automatique par ZURI sera disponible prochainement. En attendant, enregistrez votre document dans SharePoint pour le conserver.</p>`;
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Analyse en cours…";
+    result.innerHTML = `<p class="doc-muted doc-loading">ZURI lit votre document…</p>`;
+
+    try {
+        const text = await window.analyzeDocumentWithAgent(selectedDocument, savedDocument);
+        result.innerHTML = `<div class="doc-analysis">${escapeHtml(text || "Aucun résultat renvoyé.")
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/\n/g, "<br>")}</div>`;
+    } catch (error) {
+        console.error("Erreur d'analyse :", error);
+        result.innerHTML = `<p class="doc-muted">L’analyse n’a pas pu aboutir. Réessayez dans quelques instants.</p>`;
+    } finally {
+        button.disabled = !selectedDocument;
+        button.textContent = "Analyser avec ZURI";
+    }
+}
+
+function wireDocumentPage() {
+    selectedDocument = null;
+    savedDocument = null;
+
+    const input = document.getElementById("documentFile");
+    const dropzone = document.getElementById("docDropzone");
+
+    input?.addEventListener("change", () => docSelectFile(input.files[0]));
+
+    if (dropzone) {
+        ["dragenter", "dragover"].forEach(type => dropzone.addEventListener(type, e => {
+            e.preventDefault();
+            dropzone.classList.add("is-dragging");
+        }));
+        ["dragleave", "dragend"].forEach(type => dropzone.addEventListener(type, e => {
+            if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove("is-dragging");
+        }));
+        dropzone.addEventListener("drop", e => {
+            e.preventDefault();
+            dropzone.classList.remove("is-dragging");
+            docSelectFile(e.dataTransfer?.files?.[0]);
+        });
+    }
+
+    document.getElementById("saveDocumentBtn")?.addEventListener("click", docSave);
+    document.getElementById("analyzeDocumentBtn")?.addEventListener("click", docAnalyze);
+}
+/* ================= FIN DU BLOC REMONTÉE DOCUMENTAIRE ================= */
 function stats(){
  const bars=(items)=>items.map(x=>`<div class="bar-line"><span>${x[0]}</span><div class="bar-track"><div class="bar-fill" style="width:${x[1]}%"></div></div><b>${x[1]}%</b></div>`).join("");
  const mini=(items)=>items.map(x=>`<div class="mini-bar-row"><span>${x[0]}</span><div class="mini-track"><i style="width:${x[1]}%"></i></div><b>${x[2]}</b></div>`).join("");
@@ -1892,7 +2112,7 @@ if (page === "Analyse documentaire") {
                 alert("Impossible d'enregistrer le document : " + error.message);
 
                 saveButton.disabled = false;
-                saveButton.textContent = "Enregistrer le document";
+                if (page === "Analyse documentaire") wireDocumentPage();
             }
         });
     }
