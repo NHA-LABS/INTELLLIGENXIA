@@ -256,27 +256,82 @@ async function fetchSharePointArticles() {
 }
 window.fetchSharePointArticles = fetchSharePointArticles;
 
+/* =====================================================================
+   ENREGISTREMENT DES VISITES — js/auth.js
+   REMPLACE toute l'ancienne fonction, depuis
+       async function registerVisit() {
+   jusqu'à la ligne
+       window.registerVisit = registerVisit;   (incluse)
+   ===================================================================== */
+
+// Enregistre une visite par session dans la liste SharePoint des visites :
+// une ligne par collaborateur (Titre = e-mail), NombreVisites incrémenté.
 async function registerVisit() {
     const account = getCurrentUser();
+    const email = getCurrentUserEmail();
+    if (!account || !email) return;
 
-    if (!account) {
-        console.warn("Visite non enregistrée : aucun utilisateur connecté.");
-        return;
+    // Une seule visite comptée par session (une actualisation ne compte pas)
+    const sessionKey = "intelligenxia-visite-" + email;
+    try {
+        if (sessionStorage.getItem(sessionKey)) return;
+    } catch { /* stockage indisponible : on continue */ }
+
+    const tokenResult = await msalInstance.acquireTokenSilent({ scopes: ["Sites.ReadWrite.All"], account });
+    const headers = {
+        Authorization: `Bearer ${tokenResult.accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json"
+    };
+    const base = `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharepoint.siteId}/lists/${CONFIG.sharepoint.visitsListId}/items`;
+
+    // Recherche de la ligne du collaborateur
+    let existing = null;
+    let nextUrl = `${base}?$expand=fields($select=Title,NombreVisites)&$top=200`;
+    while (nextUrl && !existing) {
+        const response = await fetch(nextUrl, { headers });
+        if (!response.ok) throw new Error(`Lecture des visites impossible (${response.status}).`);
+        const data = await response.json();
+        existing = (data.value || []).find(item =>
+            String(item.fields?.Title || "").trim().toLowerCase() === email
+        );
+        nextUrl = data["@odata.nextLink"] || null;
     }
 
-    const email = getCurrentUserEmail();
-    if (!email) return;
+    const now = new Date().toISOString();
+    const response = existing
+        ? await fetch(`${base}/${existing.id}/fields`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+                NombreVisites: (Number(existing.fields?.NombreVisites) || 0) + 1,
+                DateDerniereVisite: now
+            })
+        })
+        : await fetch(base, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                fields: {
+                    Title: email,
+                    NombreVisites: 1,
+                    DatePremiereVisite: now,
+                    DateDerniereVisite: now
+                }
+            })
+        });
 
-    const siteId = CONFIG.sharepoint.siteId;
-    const listId = CONFIG.sharepoint.visitsListId;
+    if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`Enregistrement de la visite impossible (${response.status}). ${details.slice(0, 300)}`);
+    }
 
-    console.info("Compteur de visites prêt pour :", email);
-
-    // L'enregistrement SharePoint sera activé après
-    // l'autorisation d'écriture de l'administrateur.
+    try { sessionStorage.setItem(sessionKey, now); } catch { /* sans incidence */ }
+    console.info("Visite enregistrée pour :", email);
 }
 
 window.registerVisit = registerVisit;
+/* ================= FIN DU BLOC VISITES (auth.js) ================= */
 
 async function getVisitStats() {
     const account = getCurrentUser();
@@ -628,6 +683,5 @@ async function fetchSharePointImage(imageUrl) {
 
 window.fetchSharePointImage = fetchSharePointImage;
 /* ===================== FIN DU BLOC IMAGES (auth.js) ===================== */
-
 export { initAuth };
 

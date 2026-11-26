@@ -2015,6 +2015,7 @@ function wireDetail(){
 function wirePage(page){
     if (page === "Accueil") setFeaturedImage(featuredArticles[featuredIndex]);
     if (page === "Types de veille") wireTypeCards();
+    if (page === "Accueil") updateVisitCounters();
     // Carrousel des actualités prioritaires
 if (page === "Accueil") {
 
@@ -2247,25 +2248,47 @@ setInterval(() => {
 // Affichage initial du portail
 render("Accueil");
 
-async function updateVisitCounters() {
-    const visitorsElement = document.getElementById("visiteurs-uniques");
-    const visitsElement = document.getElementById("total-visites");
+/* =====================================================================
+   AFFICHAGE DES VISITES — js/app.js (tout en bas du fichier)
+   REMPLACE l'ancien bloc, depuis
+       async function updateVisitCounters() {
+   jusqu'aux lignes
+       // Chargement des statistiques de fréquentation
+       updateVisitCounters();      (incluses)
+   ===================================================================== */
 
-    if (!visitorsElement || !visitsElement) return;
-    if (typeof window.getVisitStats !== "function") return;
+let visitStatsCache = null;
+let visitStatsLoadedAt = 0;
+
+async function updateVisitCounters() {
+    const show = stats => {
+        const visitors = document.getElementById("visiteurs-uniques");
+        const visits = document.getElementById("total-visites");
+        if (visitors) visitors.textContent = stats.visiteursUniques;
+        if (visits) visits.textContent = stats.totalVisites;
+    };
+
+    // Affichage immédiat des derniers chiffres connus (évite le retour à « — »)
+    if (visitStatsCache) show(visitStatsCache);
+
+    if (typeof window.getVisitStats !== "function" || !window.getCurrentUser?.()) return;
+
+    // Relecture dans SharePoint au plus une fois par minute
+    if (Date.now() - visitStatsLoadedAt < 60 * 1000) return;
+    visitStatsLoadedAt = Date.now();
 
     try {
-        const stats = await window.getVisitStats();
-
-        visitorsElement.textContent = stats.visiteursUniques;
-        visitsElement.textContent = stats.totalVisites;
-
+        visitStatsCache = await window.getVisitStats();
+        show(visitStatsCache);
     } catch (error) {
+        visitStatsLoadedAt = 0;
         console.error("Chargement des statistiques de visites impossible :", error);
     }
 }
+
+window.updateVisitCounters = updateVisitCounters;
+/* ================= FIN DU BLOC VISITES (app.js) ================= */
 // Chargement des statistiques de fréquentation
-updateVisitCounters();
 
 function safeExternalUrl(value) {
     try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
