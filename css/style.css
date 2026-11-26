@@ -578,3 +578,13 @@
 @media(max-width:1000px){.doc-layout{grid-template-columns:1fr}}
 @media(max-width:560px){.doc-main,.doc-panel{padding:18px}.doc-actions{flex-direction:column-reverse}.doc-btn{width:100%}}
 @media(prefers-reduced-motion:reduce){.doc-illustration,.doc-dropzone{transition:none}.doc-loading::after{animation:none}}
+/* =========================================================
+   IMAGE « À LA UNE » — à coller à la fin de css/style.css
+   ========================================================= */
+.featured-image{background:#eef2f9}
+.featured-fallback{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;padding:22px;background:linear-gradient(150deg,#0b2b6d 0%,#071e55 70%);color:#fff;overflow:hidden}
+.featured-fallback::before{content:"";position:absolute;width:260px;height:260px;right:-70px;top:-70px;border:2px solid rgba(211,154,8,.55);border-radius:50%}
+.featured-fallback::after{content:"";position:absolute;width:170px;height:170px;right:-25px;top:-25px;border:1px solid rgba(211,154,8,.35);border-radius:50%}
+.featured-fallback strong{position:relative;font:800 20px/1.25 Manrope,sans-serif;max-width:80%}
+.featured-fallback span{position:relative;font-size:11px;color:#c9d6f0}
+.featured-label{z-index:2}

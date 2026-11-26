@@ -163,6 +163,83 @@ content.addEventListener("click", event => {
 
 const INTELLIGENXIA_URL = CONFIG.copilot.chatUrl;
 
+/* =====================================================================
+   IMAGE « À LA UNE » — à coller dans js/app.js
+   EMPLACEMENT : juste AVANT la ligne   function getLatestFeaturedArticles() {
+   ===================================================================== */
+
+// Transforme la valeur de la colonne SharePoint « URL_Image » en adresse d'image
+function parseImageField(value) {
+    if (!value) return "";
+    let data = value;
+
+    if (typeof data === "string") {
+        const text = data.trim();
+        if (!text.startsWith("{")) return text; // déjà une adresse
+        try { data = JSON.parse(text); } catch { return ""; }
+    }
+
+    if (data && typeof data === "object") {
+        if (data.serverUrl && data.serverRelativeUrl) return data.serverUrl + data.serverRelativeUrl;
+        return data.Url || data.url || "";
+    }
+    return "";
+}
+
+// Les images stockées dans SharePoint passent par Microsoft Graph ;
+// les images d'autres sites s'affichent directement.
+async function resolveArticleImage(url) {
+    if (!url) return "";
+    let host = "";
+    try { host = new URL(url).hostname; } catch { return ""; }
+
+    if (host.endsWith(".sharepoint.com") && typeof window.fetchSharePointImage === "function") {
+        return window.fetchSharePointImage(url);
+    }
+    return url;
+}
+
+let featuredImageRequest = 0;
+
+async function setFeaturedImage(article) {
+    const img = document.getElementById("featuredImage");
+    const fallback = document.getElementById("featuredFallback");
+    const fallbackLabel = document.getElementById("featuredFallbackLabel");
+    if (!img) return;
+
+    const request = ++featuredImageRequest;
+    const showFallback = () => {
+        if (request !== featuredImageRequest) return;
+        img.hidden = true;
+        if (fallback) fallback.hidden = false;
+    };
+
+    if (fallbackLabel) fallbackLabel.textContent = article?.category || article?.family || "Actualité";
+
+    if (!article?.image) {
+        img.removeAttribute("src");
+        showFallback();
+        return;
+    }
+
+    try {
+        const src = await resolveArticleImage(article.image);
+        if (request !== featuredImageRequest) return;
+        if (!src) { showFallback(); return; }
+
+        img.onload = () => {
+            if (request !== featuredImageRequest) return;
+            img.hidden = false;
+            if (fallback) fallback.hidden = true;
+        };
+        img.onerror = showFallback;
+        img.src = src;
+    } catch (error) {
+        console.warn("Image de l'article indisponible :", error);
+        showFallback();
+    }
+}
+/* ================ FIN DU BLOC IMAGE « À LA UNE » (app.js) ================ */
 function getLatestFeaturedArticles() {
     return [...articles]
         .sort((a, b) => {
@@ -194,15 +271,7 @@ function showFeaturedSlide(index) {
 
     if (button) button.dataset.openArticle = article.id;
 
-    if (image) {
-        if (article.image) {
-            image.src = article.image;
-            image.hidden = false;
-        } else {
-            image.removeAttribute("src");
-            image.hidden = true;
-        }
-    }
+        setFeaturedImage(article);
 
     document.querySelectorAll(".featured-dot").forEach((dot, i) => {
         dot.classList.toggle("active", i === featuredIndex);
@@ -276,12 +345,12 @@ function home(){
     <article class="featured-card">
 
         <div class="featured-image">
-            <img
-                id="featuredImage"
-                src="${featuredArticles[0]?.image || ""}"
-                alt="Actualité à la une"
-                ${featuredArticles[0]?.image ? "" : "hidden"}
-            >
+                        <img id="featuredImage" alt="Illustration de l’actualité à la une" hidden>
+            <div class="featured-fallback" id="featuredFallback">
+                <strong id="featuredFallbackLabel">${escapeHtml(featuredArticles[0]?.category || "Actualité")}</strong>
+                <span>Veille stratégique du Groupe NSIA</span>
+            </div>
+
             <span class="featured-label">À LA UNE</span>
         </div>
 
@@ -1882,7 +1951,7 @@ category: f.AjouterCategorie || "",
                 threats: f.Menaces_Filiale || "",
                 recommendation: f.Recommandation || "",
                 url: safeExternalUrl(f.URL_Source_Texte || f.URL_Source),
-                image: f.URL_Image || ""
+                image: parseImageField(f.URL_Image)
             };
         });
                 refreshArticleVotes();
@@ -1944,6 +2013,7 @@ function wireDetail(){
     document.getElementById("printAnalysis")?.addEventListener("click", () => window.print());
 }
 function wirePage(page){
+    if (page === "Accueil") setFeaturedImage(featuredArticles[featuredIndex]);
     if (page === "Types de veille") wireTypeCards();
     // Carrousel des actualités prioritaires
 if (page === "Accueil") {

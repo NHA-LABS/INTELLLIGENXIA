@@ -571,6 +571,63 @@ window.fetchArticleVotes = fetchArticleVotes;
 window.saveArticleVote = saveArticleVote;
 window.getCurrentUserEmail = getCurrentUserEmail;
 /* ===================== FIN DU BLOC VOTES (auth.js) ===================== */
+/* =====================================================================
+   IMAGES SHAREPOINT — à coller dans js/auth.js
+   EMPLACEMENT : juste AVANT la dernière ligne   export { initAuth };
+   ===================================================================== */
+
+let siteDrivesCache = null;
+const sharePointImageCache = new Map(); // adresse → { url, expires }
+
+// Renvoie une adresse temporaire (valable environ 1 h) permettant
+// d'afficher une image stockée dans une bibliothèque SharePoint du site.
+async function fetchSharePointImage(imageUrl) {
+    const cached = sharePointImageCache.get(imageUrl);
+    if (cached && cached.expires > Date.now()) return cached.url;
+
+    const account = getCurrentUser();
+    if (!account) throw new Error("Aucun utilisateur connecté.");
+
+    const tokenResult = await msalInstance.acquireTokenSilent({ scopes: ["Sites.Read.All"], account });
+    const headers = { Authorization: `Bearer ${tokenResult.accessToken}`, Accept: "application/json" };
+
+    // Liste des bibliothèques du site (une seule fois)
+    if (!siteDrivesCache) {
+        const response = await fetch(
+            `https://graph.microsoft.com/v1.0/sites/${CONFIG.sharepoint.siteId}/drives?$select=id,webUrl`,
+            { headers }
+        );
+        if (!response.ok) throw new Error(`Bibliothèques SharePoint illisibles (${response.status}).`);
+        siteDrivesCache = (await response.json()).value || [];
+    }
+
+    const target = decodeURI(imageUrl);
+    const drive = siteDrivesCache.find(d =>
+        target.toLowerCase().startsWith(decodeURI(d.webUrl).toLowerCase() + "/")
+    );
+    if (!drive) throw new Error("Bibliothèque de l'image introuvable sur le site.");
+
+    const relativePath = target
+        .slice(decodeURI(drive.webUrl).length + 1)
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+
+    const response = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${drive.id}/root:/${relativePath}`,
+        { headers }
+    );
+    if (!response.ok) throw new Error(`Image SharePoint illisible (${response.status}).`);
+
+    const url = (await response.json())["@microsoft.graph.downloadUrl"];
+    if (!url) throw new Error("Lien de téléchargement absent.");
+
+    sharePointImageCache.set(imageUrl, { url, expires: Date.now() + 50 * 60 * 1000 });
+    return url;
+}
+
+window.fetchSharePointImage = fetchSharePointImage;
+/* ===================== FIN DU BLOC IMAGES (auth.js) ===================== */
 
 export { initAuth };
 
