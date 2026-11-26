@@ -470,10 +470,18 @@ async function graphRequest(url, { method = "GET", body, write = false } = {}) {
     const account = getCurrentUser();
     if (!account) throw new Error("Connectez-vous avec votre compte Microsoft NSIA.");
 
-    const tokenResult = await msalInstance.acquireTokenSilent({
-        scopes: [write ? "Sites.ReadWrite.All" : "Sites.Read.All"],
-        account
-    });
+    const tokenRequest = { scopes: [write ? "Sites.ReadWrite.All" : "Sites.Read.All"], account };
+    let tokenResult;
+    try {
+        tokenResult = await msalInstance.acquireTokenSilent(tokenRequest);
+    } catch (error) {
+        const text = `${error?.name} ${error?.errorCode} ${error?.message}`;
+        if (/InteractionRequired|AADSTS65001|consent_required|interaction_required/i.test(text)) {
+            await msalInstance.acquireTokenRedirect(tokenRequest);
+            return new Promise(() => {}); // la page part vers Microsoft
+        }
+        throw error;
+    }
 
     const response = await fetch(url, {
         method,
