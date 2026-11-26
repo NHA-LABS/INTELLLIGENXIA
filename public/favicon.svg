@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#091d60"/><text x="32" y="46" text-anchor="middle" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#cf9c0e">X</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <pattern id="dots" width="4" height="4" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.6" fill="#1c3580"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#091d60"/>
+  <rect width="64" height="64" rx="14" fill="url(#dots)"/>
+  <g fill="none" stroke="#e0a81e" stroke-width="3" stroke-linecap="round">
+    <circle cx="32" cy="33" r="17"/>
+    <ellipse cx="32" cy="33" rx="25" ry="9" transform="rotate(-35 32 33)"/>
+  </g>
+  <circle cx="50.5" cy="19.5" r="5" fill="#e0a81e"/>
+</svg>
