@@ -2126,68 +2126,8 @@ document.querySelectorAll("[data-competitor-name]").forEach(card => {
  const back=document.getElementById("backToCompetitors");if(back)back.addEventListener("click",()=>render("Concurrents"));
  const refreshCompetitor=()=>{if(window.currentCompetitorIndex!==undefined){const f={q:document.getElementById("competitorSearch")?.value||"",category:document.getElementById("competitorCategory")?.value||"",priority:document.getElementById("competitorPriority")?.value||""};content.innerHTML=competitorDetail(window.currentCompetitorIndex,f);wireCompetitorDetail()}};
  ["competitorSearch","competitorCategory","competitorPriority"].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener(id==="competitorSearch"?"input":"change",refreshCompetitor)});
-// Gestion de la sélection d'un document
-if (page === "Analyse documentaire") {
 
-    const fileInput = document.getElementById("documentFile");
-    const saveButton = document.getElementById("saveDocumentBtn");
-    const analyzeButton = document.getElementById("analyzeDocumentBtn");
-
-    if (fileInput) {
-        fileInput.addEventListener("change", () => {
-
-            let display = document.getElementById("documentFileName");
-
-            if (!display) {
-                display = document.createElement("p");
-                display.id = "documentFileName";
-                fileInput.insertAdjacentElement("afterend", display);
-            }
-
-            const file = fileInput.files[0];
-
-            display.textContent = file
-                ? "Document sélectionné : " + file.name
-                : "Aucun document sélectionné";
-
-            if (saveButton) saveButton.disabled = !file;
-            if (analyzeButton) analyzeButton.disabled = !file;
-        });
-    }
-
-    // Enregistrement dans SharePoint
-    if (saveButton) {
-        saveButton.addEventListener("click", async () => {
-
-            const file = fileInput?.files[0];
-
-            if (!file) {
-                alert("Veuillez sélectionner un document.");
-                return;
-            }
-
-            saveButton.disabled = true;
-            saveButton.textContent = "Enregistrement en cours...";
-
-            try {
-                const result = await window.uploadDocumentToSharePoint(file);
-
-                console.log("Document SharePoint :", result);
-
-                alert("Document enregistré avec succès dans SharePoint !");
-                saveButton.textContent = "Document enregistré";
-
-            } catch (error) {
-                console.error("Erreur d'enregistrement :", error);
-
-                alert("Impossible d'enregistrer le document : " + error.message);
-
-                saveButton.disabled = false;
-                if (page === "Analyse documentaire") wireDocumentPage();
-            }
-        });
-    }
-}
+ if (page === "Analyse documentaire") wireDocumentPage();
 }
 function escapeHtml(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 document.querySelectorAll(".nav-link").forEach(b => {
